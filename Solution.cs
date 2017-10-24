@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Runtime.Remoting.Messaging;
+
 //using System.Dynamic;
 
 namespace C1Q1
@@ -16,17 +18,16 @@ namespace C1Q1
 
             return theResult;
         }
+    
     }
 
 
     class CPoint
     {
         private const int KPoolMax = 12;
-        private readonly int _mValue;
-        private readonly int _mIndex;
         private static readonly CPoint[] SPointsPool = new CPoint[KPoolMax];
         private static int _sPoolLen;
-        
+        private bool _isConnector;
 
         public static CPoint Create(
             int[] inArray,
@@ -43,6 +44,7 @@ namespace C1Q1
                     if (SPointsPool[i].Index == inIndex)
                     {
                         thePoint = SPointsPool[i];
+                        thePoint._isConnector = true;    // Mark the point was already touched
                         break;
                     }
 
@@ -71,12 +73,90 @@ namespace C1Q1
             int index,
             int value)
         {
-            _mIndex = index;
-            _mValue = value;
+            Index = index;
+            Value = value;
+            _isConnector = false;
         }
 
-        public int Value => _mValue;
-        public int Index => _mIndex;
+        public int Value { get; }
+
+        public int Index { get; }
+
+        public bool IsConnecting() => _isConnector;
     }
 
+    class CSegment
+    {
+
+        public static CSegment Create(
+            int[] inArray,
+            ref int inStartIndex,
+            ref int inEndIndex)
+        {
+            CSegment theSegment = null;
+
+            if (inArray[inStartIndex] == inArray[inEndIndex])
+            {
+                if (inEndIndex < inArray.Length - 1)
+                {
+                    inEndIndex++;
+                    theSegment = new CSegment(inArray, inStartIndex, inEndIndex);
+                }
+                    
+            } else
+                theSegment = new CSegment(inArray, inStartIndex, inEndIndex);
+
+            return theSegment;
+        }
+        private CSegment(
+            int[] inArray,
+            int inStartIndex,
+            int inEndIndex)
+        {
+            StartingPoint = CPoint.Create(inArray,inStartIndex);
+            EndingPoint = CPoint.Create(inArray,inEndIndex);
+        }
+
+        public CPoint StartingPoint { get; }
+
+        public CPoint EndingPoint { get; }
+
+        public int Distance()
+        {
+            return EndingPoint.Value - StartingPoint.Value;
+        }
+    }
+
+    public class CSegmentSquad
+    {
+
+        private readonly int[] _intArray;
+        private CSegment[] _minimalSegments;
+        private CSegment[] _subMinimalSegments;
+        private int _minimalSegmentsSize, _subMinimalSegmentSize;
+
+        public CSegmentSquad(
+            int[] inArray)
+        {
+            _intArray = inArray;
+            _minimalSegments = new CSegment[6];
+            _minimalSegmentsSize = 0;
+            _subMinimalSegments = new CSegment[4];
+            _subMinimalSegmentSize = 0;
+        }
+
+        public bool Recruit(
+            ref int index)
+        {
+            bool hasMore = true;
+
+
+
+            index++;
+            if (index >= _intArray.Length - 1)
+                hasMore = false;
+
+            return hasMore;
+        }
+    }
 }
