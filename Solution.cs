@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Runtime.Remoting.Messaging;
-
 //using System.Dynamic;
 
 namespace C1Q1
@@ -24,65 +22,41 @@ namespace C1Q1
 
     class CPoint
     {
-        private const int KPoolMax = 12;
-        private static readonly CPoint[] SPointsPool = new CPoint[KPoolMax];
-        private static int _sPoolLen;
+        private static int[] _sBackingArray;
         private bool _isConnector;
 
-        public static CPoint Create(
-            int[] inArray,
-            int inIndex)
+
+        public static void SetBackingArray(
+            int[] inArray)
         {
-            CPoint thePoint = null;
-
-            // First check, if the point was already visted
-            if (inArray[inIndex] < 0)
-            {
-                // Defenitly, there should be a match
-                for (int i = 0; i < KPoolMax; i++)
-                {
-                    if (SPointsPool[i].Index == inIndex)
-                    {
-                        thePoint = SPointsPool[i];
-                        thePoint._isConnector = true;    // Mark the point was already touched
-                        break;
-                    }
-
-                }
-
-                if (thePoint == null)
-                {
-                    throw new Exception("Oh No!, Can't find the point in the pool");
-                }
-            }
-            else
-            {
-                thePoint = new CPoint(inIndex, inArray[inIndex]);
-                SPointsPool[_sPoolLen] = thePoint;
-                _sPoolLen++;
-                if( _sPoolLen > KPoolMax)
-                    throw new Exception("The Point pool is over!");
-            }
-
-            
-
-            return thePoint;
+            _sBackingArray = inArray;
         }
 
-        private CPoint(
-            int index,
-            int value)
+        public CPoint(
+            int index)
         {
+
+            if( _sBackingArray == null )
+                throw new Exception("The backing array is required!");
+
             Index = index;
-            Value = value;
             _isConnector = false;
+            
         }
 
-        public int Value { get; }
+        public int Value => _sBackingArray[Index];
 
         public int Index { get; }
 
         public bool IsConnecting() => _isConnector;
+
+        public void Touch()
+        {
+            if (_sBackingArray[Index] < 0) // It was already touched
+                _isConnector = true;
+            else
+                _sBackingArray[Index] = -_sBackingArray[Index];
+        }
     }
 
     class CSegment
@@ -90,32 +64,58 @@ namespace C1Q1
 
         public static CSegment Create(
             int[] inArray,
-            ref int inStartIndex,
+            int inStartIndex,
             ref int inEndIndex)
         {
             CSegment theSegment = null;
 
+            // Handling of zero-distance segments
             if (inArray[inStartIndex] == inArray[inEndIndex])
             {
                 if (inEndIndex < inArray.Length - 1)
                 {
                     inEndIndex++;
-                    theSegment = new CSegment(inArray, inStartIndex, inEndIndex);
+                    theSegment = new CSegment(inStartIndex, inEndIndex);
                 }
                     
             } else
-                theSegment = new CSegment(inArray, inStartIndex, inEndIndex);
+                theSegment = new CSegment(inStartIndex, inEndIndex);
 
             return theSegment;
         }
         private CSegment(
-            int[] inArray,
             int inStartIndex,
             int inEndIndex)
         {
-            StartingPoint = CPoint.Create(inArray,inStartIndex);
-            EndingPoint = CPoint.Create(inArray,inEndIndex);
+            StartingPoint = new CPoint(inStartIndex);
+            EndingPoint = new CPoint(inEndIndex);
         }
+
+        public static bool operator < (CSegment leftSegment, CSegment rightSegment)
+        {
+            return (leftSegment.EndingPoint.Value - leftSegment.StartingPoint.Value) <
+                   (rightSegment.EndingPoint.Value - rightSegment.EndingPoint.Value);
+        }
+
+        public static bool operator > (CSegment leftSegment, CSegment rightSegment)
+        {
+            return (leftSegment.EndingPoint.Value - leftSegment.StartingPoint.Value) >
+                   (rightSegment.EndingPoint.Value - rightSegment.EndingPoint.Value);
+        }
+
+        public static bool operator == (CSegment leftSegment, CSegment rightSegment)
+        {
+            return rightSegment != null && (leftSegment != null && (leftSegment.EndingPoint.Value - leftSegment.StartingPoint.Value) ==
+                                            (rightSegment.EndingPoint.Value - rightSegment.EndingPoint.Value));
+        }
+
+        public static bool operator != (CSegment leftSegment, CSegment rightSegment)
+        {
+            return rightSegment != null && (leftSegment != null && (leftSegment.EndingPoint.Value - leftSegment.StartingPoint.Value) !=
+                                            (rightSegment.EndingPoint.Value - rightSegment.EndingPoint.Value));
+        }
+
+        
 
         public CPoint StartingPoint { get; }
 
@@ -130,7 +130,7 @@ namespace C1Q1
     public class CSegmentSquad
     {
 
-        private readonly int[] _intArray;
+        private readonly int[] _mArray;
         private CSegment[] _minimalSegments;
         private CSegment[] _subMinimalSegments;
         private int _minimalSegmentsSize, _subMinimalSegmentSize;
@@ -138,7 +138,7 @@ namespace C1Q1
         public CSegmentSquad(
             int[] inArray)
         {
-            _intArray = inArray;
+            _mArray = inArray;
             _minimalSegments = new CSegment[6];
             _minimalSegmentsSize = 0;
             _subMinimalSegments = new CSegment[4];
@@ -149,11 +149,20 @@ namespace C1Q1
             ref int index)
         {
             bool hasMore = true;
+            int theStartIndex = index;
+            int theEndIndex = index + 1;
 
+            CSegment theSegment = CSegment.Create(_mArray, theStartIndex, ref theEndIndex);
 
+            if (_minimalSegmentsSize == 0)
+                _minimalSegments[0] = theSegment;
+            else
+            {
+               
+            }
 
-            index++;
-            if (index >= _intArray.Length - 1)
+            index += theEndIndex - theStartIndex;   // Segment.create may move forward the end
+            if (index >= _mArray.Length - 1)
                 hasMore = false;
 
             return hasMore;
