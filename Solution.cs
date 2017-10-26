@@ -120,8 +120,8 @@ namespace C1Q1
     {
 
         private readonly int[] _mArray;
-        private CSegment[] _minimalSegments;
-        private CSegment[] _subMinimalSegments;
+        private readonly CSegment[] _minimalSegments;
+        private readonly CSegment[] _subMinimalSegments;
         private int _minimalSegmentsSize, _subMinimalSegmentSize;
         private int _minimalSegmentsDupCount, _mSubMinimalSegmentDupCount;
 
@@ -154,23 +154,14 @@ namespace C1Q1
             else
             {
                 int theComparisonResult = theSegment.Compare(_minimalSegments[0]);
-                if (theComparisonResult < 0)
+                if (theComparisonResult < 0)  // theSegment < inArray_segment if_branch
                 {
-                    // theSegment < inArray segment
-
-                    if( _subMinimalSegments[0] == null)
-                        _subMinimalSegments[0] = _minimalSegments[0]; 
-                    else
-                    {
-                        // Oh GOD! we should check for equality here TOO!!
-                        int theSubMinimalCompareResult = _minimalSegments[0].Compare(_subMinimalSegments[0]);
-                        if( theSubMinimalCompareResult < 0 )
-                            _subMinimalSegments[0] = _minimalSegments[0];
-                        else
-                        {
-                            _mSubMinimalSegmentDupCount++;
-                        }
-                    }
+                    
+                    // Handle subMinimal here:
+                    //  We put the previous minimal candidate AND its duplicate_count
+                    //  into the subminimal array
+                    _subMinimalSegments[0] = _minimalSegments[0];
+                    _mSubMinimalSegmentDupCount = _minimalSegmentsDupCount;
 
 
                     _minimalSegments[0] = theSegment;
@@ -197,36 +188,17 @@ namespace C1Q1
 
         public bool FinalizeRecruit()
         {
-            bool wasSuccessful = true;
+            var wasSuccessful = _CollectDupSegments(_minimalSegmentsDupCount, _minimalSegments, 6, 
+                ref _minimalSegmentsSize);
 
-            if (_minimalSegmentsDupCount > 0)
-            {
-                if (_minimalSegmentsDupCount <= 6)
-                {
-                    int theMinimalDistance = _minimalSegments[0].Distance(), theDistance;
-                    for (int i = 0, j = 0; i < _mArray.Length - 1 || j < _minimalSegmentsDupCount; i++)
-                    {
-                        theDistance = _mArray[i + 1] - _mArray[i - 1];
-                        if (theDistance == theMinimalDistance)
-                        {
-                            int theStartIndex = i, theEndIndex = i + 1;
-                            CSegment theSegment = CSegment.Create(_mArray, theStartIndex, ref theEndIndex);
-                            _minimalSegments[_minimalSegmentsSize] = theSegment;
-                            _minimalSegmentsSize++;
-                            j++;
-                        }
-                    }
-                }
-                else
-                {
-                    wasSuccessful = false;
-                }
-            }
+            if (wasSuccessful)
+                wasSuccessful = _CollectDupSegments(_mSubMinimalSegmentDupCount, _subMinimalSegments, 4,
+                    ref _subMinimalSegmentSize);
 
             return wasSuccessful;
         }
 
-        bool collectDupSegments(
+        private bool _CollectDupSegments(
             int inDupCount,
             CSegment[] inSegmentArray,
             int inMaxAllowedDup,
@@ -238,10 +210,10 @@ namespace C1Q1
             {
                 if (inDupCount <= inMaxAllowedDup)
                 {
-                    int theMinimalDistance = inSegmentArray[0].Distance(), theDistance;
+                    int theMinimalDistance = inSegmentArray[0].Distance();
                     for (int i = 0, j = 0; i < _mArray.Length - 1 || j < inDupCount; i++)
                     {
-                        theDistance = _mArray[i + 1] - _mArray[i - 1];
+                        var theDistance = _mArray[i + 1] - _mArray[i - 1];
                         if (theDistance == theMinimalDistance)
                         {
                             int theStartIndex = i, theEndIndex = i + 1;
