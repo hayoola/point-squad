@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Runtime.InteropServices;
+//using System.Runtime.InteropServices;
 
 //using System.Dynamic;
 
@@ -259,20 +259,55 @@ namespace C1Q1
                     // At the end of recruiting process, if this trigger was still set; then
                     //  we need to collect these segments...
                     // Look at FinalizeRecruit below
+
+                }
+                else
+                {
+                    // The inspected segment is greater than the current minimal,
+                    //  so check the subminiaml and if it is less than subminimal then
+                    //  record it as the current subminimal
+                    theComparisonResult = _transientResidency.Dist - _subMinimalResidency.Dist;
+                    if (theComparisonResult < 0)
+                    {
+                        _subMinimalResidency.Assign(_transientResidency);
+                        _subMinimalResidency.DupCount = 0;
+                    } else if (theComparisonResult == 0)
+                        _subMinimalResidency.DupCount++;
+
                 }
 
                 index += theEndIndex - theStartIndex;
+            }
+            else
+            {
+                index++;
             }
             return canInspect;
         }
 
         public bool FinalizeRecruit()
         {
-            var wasSuccessful = _CollectDupSegments(_minimalResidency.DupCount, _minimalSegments, 6, 
+            // First create one segment for the minimal residency
+            CSegment theSegment = CSegment.Create(_mArray, _minimalResidency.Start, ref _minimalResidency.End);
+            _minimalSegments[0] = theSegment;
+            _minimalSegmentsSize = 1;
+
+            // Then handle the dups of minimal
+            var wasSuccessful = _CollectDupSegments(_minimalResidency.DupCount, _minimalSegments, 5, 
                 ref _minimalSegmentsSize);
 
+            // Now look at the subMinimal and if there was a valid segment, create and put it into the 
+            //  subminimal segment array
+            if (_subMinimalResidency.End > _subMinimalResidency.Start)
+            {
+                theSegment = CSegment.Create(_mArray, _subMinimalResidency.Start, ref _subMinimalResidency.End);
+                _subMinimalSegments[0] = theSegment;
+                _subMinimalSegmentSize = 1;
+            }
+
+
             if (wasSuccessful)
-                wasSuccessful = _CollectDupSegments(_subMinimalResidency.DupCount, _subMinimalSegments, 4,
+                wasSuccessful = _CollectDupSegments(_subMinimalResidency.DupCount, _subMinimalSegments, 3,
                     ref _subMinimalSegmentSize);
 
             return wasSuccessful;
@@ -293,7 +328,7 @@ namespace C1Q1
                     int theMinimalDistance = inSegmentArray[0].Distance();
                     for (int i = 0, j = 0; i < _mArray.Length - 1 || j < inDupCount; i++)
                     {
-                        var theDistance = _mArray[i + 1] - _mArray[i - 1];
+                        var theDistance = _mArray[i + 1] - _mArray[i];
                         if (theDistance == theMinimalDistance)
                         {
                             int theStartIndex = i, theEndIndex = i + 1;
