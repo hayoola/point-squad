@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Runtime.InteropServices;
+
 //using System.Dynamic;
 
 namespace C1Q1
@@ -14,6 +16,14 @@ namespace C1Q1
             Array.Sort(input);
             foreach (int i in input) Console.Write(i + " ");
 
+            CPoint.SetBackingArray(input);
+            CSegmentSquad theSegmentSquad = new CSegmentSquad(input);
+            for (int i = 0; i < input.Length;)
+            {
+                bool canRecruit = theSegmentSquad.Recruit(ref i);
+            }
+            bool isFeasible = theSegmentSquad.FinalizeRecruit();
+
             return theResult;
         }
     
@@ -23,7 +33,8 @@ namespace C1Q1
     class CPoint
     {
         private static int[] _sBackingArray;
-        private bool _isConnector;
+        private readonly bool _isConnector;
+        private static readonly CPoint[] SPointsPool = new CPoint[12];
 
 
         public static void SetBackingArray(
@@ -32,7 +43,35 @@ namespace C1Q1
             _sBackingArray = inArray;
         }
 
-        public CPoint(
+
+        public static CPoint CreateUniquePoint(
+            int index)
+        {
+            CPoint thePoint = null;
+
+            if (_sBackingArray[index] < 0)
+            {
+                // Definitly, this point was created before, so let's catch it!
+                for (int i = 0; i < SPointsPool.Length; i++)
+                {
+                    if (SPointsPool[i].Index == index)
+                    {
+                        thePoint = SPointsPool[i];
+                        break;
+                    }
+                }
+
+            }
+            else
+            {
+                thePoint = new CPoint(index);
+                _sBackingArray[index] = -_sBackingArray[index];
+            }
+
+            return thePoint;
+        }
+
+        private CPoint(
             int index)
         {
 
@@ -50,13 +89,7 @@ namespace C1Q1
 
         public bool IsConnecting() => _isConnector;
 
-        public void Touch()
-        {
-            if (_sBackingArray[Index] < 0) // It was already touched
-                _isConnector = true;
-            else
-                _sBackingArray[Index] = -_sBackingArray[Index];
-        }
+       
     }
 
     class CSegment
@@ -93,8 +126,8 @@ namespace C1Q1
             int inStartIndex,
             int inEndIndex)
         {
-            StartingPoint = new CPoint(inStartIndex);
-            EndingPoint = new CPoint(inEndIndex);
+            StartingPoint = CPoint.CreateUniquePoint(inStartIndex);
+            EndingPoint = CPoint.CreateUniquePoint(inEndIndex);
         }
 
 
@@ -116,6 +149,58 @@ namespace C1Q1
         }
     }
 
+
+    class SegmentResidency
+    {
+        public int Start;
+        public int End;
+        public int Dist;
+        public int DupCount;
+
+
+        public SegmentResidency()
+        {
+            Start = End = DupCount = 0;
+            Dist = Int32.MaxValue;
+        }
+
+        public void Assign(
+            SegmentResidency inResidency)
+        {
+            Start = inResidency.Start;
+            End = inResidency.End;
+            Dist = inResidency.Dist;
+        }
+
+        public static bool Inspect(
+            int[] inArray,
+            int inStart,
+            out int outEnd,
+            SegmentResidency inSegmentResidency )
+        {
+            bool canInspect = false;
+            outEnd = inStart + 1;
+
+            if (outEnd < inArray.Length)
+            {
+                if (inArray[inStart] == inArray[outEnd])
+                {
+                    while (outEnd < inArray.Length - 1)
+                    {
+                        outEnd++;
+                    }
+                }
+
+                inSegmentResidency.Start = inStart;
+                inSegmentResidency.End = outEnd;
+                inSegmentResidency.Dist = inArray[outEnd] - inArray[inStart];
+                canInspect = true;
+            }
+
+            return canInspect;
+        }
+    }
+
     public class CSegmentSquad
     {
 
@@ -123,7 +208,11 @@ namespace C1Q1
         private readonly CSegment[] _minimalSegments;
         private readonly CSegment[] _subMinimalSegments;
         private int _minimalSegmentsSize, _subMinimalSegmentSize;
-        private int _minimalSegmentsDupCount, _mSubMinimalSegmentDupCount;
+
+        private readonly SegmentResidency _minimalResidency;
+        private readonly SegmentResidency _transientResidency;
+        private readonly SegmentResidency _subMinimalResidency;
+
 
         public CSegmentSquad(
             int[] inArray)
@@ -133,66 +222,57 @@ namespace C1Q1
             _minimalSegmentsSize = 0;
             _subMinimalSegments = new CSegment[4];
             _subMinimalSegmentSize = 0;
-            _minimalSegmentsDupCount = 0;
-            _mSubMinimalSegmentDupCount = 0;
+
+            _minimalResidency = new SegmentResidency();
+            _transientResidency = new SegmentResidency();
+            _subMinimalResidency = new SegmentResidency();
         }
+
+        
 
         public bool Recruit(
             ref int index)
         {
-            bool hasMore = true;
             int theStartIndex = index;
-            int theEndIndex = index + 1;
 
-            CSegment theSegment = CSegment.Create(_mArray, theStartIndex, ref theEndIndex);
-
-            if (_minimalSegmentsSize == 0)
+            var canInspect = SegmentResidency.Inspect(_mArray, theStartIndex, out var theEndIndex, _transientResidency);
+            if (canInspect)
             {
-                _minimalSegments[0] = theSegment;
-                _minimalSegmentsSize++;
-            }
-            else
-            {
-                int theComparisonResult = theSegment.Compare(_minimalSegments[0]);
-                if (theComparisonResult < 0)  // theSegment < inArray_segment if_branch
+                int theComparisonResult = _transientResidency.Dist - _minimalResidency.Dist;
+                if (theComparisonResult < 0)
                 {
-                    
                     // Handle subMinimal here:
                     //  We put the previous minimal candidate AND its duplicate_count
                     //  into the subminimal array
-                    _subMinimalSegments[0] = _minimalSegments[0];
-                    _mSubMinimalSegmentDupCount = _minimalSegmentsDupCount;
+                    _subMinimalResidency.Assign(_minimalResidency);
+                    _subMinimalResidency.DupCount = _minimalResidency.DupCount;
 
+                    _minimalResidency.Assign(_transientResidency);
+                    _minimalResidency.DupCount = 0; // Since we've a new candidate, so reset the dup count
 
-                    _minimalSegments[0] = theSegment;
-                    _minimalSegmentsDupCount = 0;   // Since we've a new candidate, so reset the dup count
-
-
-                } else if (theComparisonResult == 0)
+                }
+                else if (theComparisonResult == 0)
                 {
                     // WTF! so we need to mark this equality situation. trigger a variable to show
                     //  the possible equal values
-                    _minimalSegmentsDupCount++;
+                    _minimalResidency.DupCount++;
                     // At the end of recruiting process, if this trigger was still set; then
                     //  we need to collect these segments...
                     // Look at FinalizeRecruit below
                 }
+
+                index += theEndIndex - theStartIndex;
             }
-
-            index += theEndIndex - theStartIndex;   // Segment.create may move forward the end
-            if (index >= _mArray.Length - 1)
-                hasMore = false;
-
-            return hasMore;
+            return canInspect;
         }
 
         public bool FinalizeRecruit()
         {
-            var wasSuccessful = _CollectDupSegments(_minimalSegmentsDupCount, _minimalSegments, 6, 
+            var wasSuccessful = _CollectDupSegments(_minimalResidency.DupCount, _minimalSegments, 6, 
                 ref _minimalSegmentsSize);
 
             if (wasSuccessful)
-                wasSuccessful = _CollectDupSegments(_mSubMinimalSegmentDupCount, _subMinimalSegments, 4,
+                wasSuccessful = _CollectDupSegments(_subMinimalResidency.DupCount, _subMinimalSegments, 4,
                     ref _subMinimalSegmentSize);
 
             return wasSuccessful;
