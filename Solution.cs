@@ -30,17 +30,19 @@ namespace C1Q1
     }
 
 
-    class CPoint
+    public class CPoint
     {
         private static int[] _sBackingArray;
-        private readonly bool _isConnector;
+        private int _touchCounter;
         private static readonly CPoint[] SPointsPool = new CPoint[12];
+        private static int _sPointsPoolSize;
 
 
         public static void SetBackingArray(
             int[] inArray)
         {
             _sBackingArray = inArray;
+            _sPointsPoolSize = 0;
         }
 
 
@@ -52,7 +54,7 @@ namespace C1Q1
             if (_sBackingArray[index] < 0)
             {
                 // Definitly, this point was created before, so let's catch it!
-                for (int i = 0; i < SPointsPool.Length; i++)
+                for (int i = 0; i < _sPointsPoolSize; i++)
                 {
                     if (SPointsPool[i].Index == index)
                     {
@@ -65,6 +67,7 @@ namespace C1Q1
             else
             {
                 thePoint = new CPoint(index);
+                SPointsPool[_sPointsPoolSize++] = thePoint;
                 _sBackingArray[index] = -_sBackingArray[index];
             }
 
@@ -79,20 +82,29 @@ namespace C1Q1
                 throw new Exception("The backing array is required!");
 
             Index = index;
-            _isConnector = false;
-            
+            _touchCounter = 0;
+
         }
+
+        public bool Touch()
+        {
+            bool isTouchedBefore = _touchCounter > 0;
+
+            _touchCounter++;
+
+            return isTouchedBefore;
+        }
+
+
+
 
         public int Value => _sBackingArray[Index];
 
         public int Index { get; }
 
-        public bool IsConnecting() => _isConnector;
-
-       
     }
 
-    class CSegment
+    public class CSegment
     {
 
         public static CSegment Create(
@@ -145,7 +157,7 @@ namespace C1Q1
 
         public int Distance()
         {
-            return EndingPoint.Value - StartingPoint.Value;
+            return Math.Abs(EndingPoint.Value) - Math.Abs(StartingPoint.Value);
         }
     }
 
@@ -228,7 +240,7 @@ namespace C1Q1
             _subMinimalResidency = new SegmentResidency();
         }
 
-        
+
 
         public bool Recruit(
             ref int index)
@@ -271,7 +283,8 @@ namespace C1Q1
                     {
                         _subMinimalResidency.Assign(_transientResidency);
                         _subMinimalResidency.DupCount = 0;
-                    } else if (theComparisonResult == 0)
+                    }
+                    else if (theComparisonResult == 0)
                         _subMinimalResidency.DupCount++;
 
                 }
@@ -293,7 +306,7 @@ namespace C1Q1
             _minimalSegmentsSize = 1;
 
             // Then handle the dups of minimal
-            var wasSuccessful = _CollectDupSegments(_minimalResidency.DupCount, _minimalSegments, 5, 
+            var wasSuccessful = _CollectDupSegments(_minimalResidency.DupCount, _minimalSegments, 5,
                 ref _minimalSegmentsSize);
 
             // Now look at the subMinimal and if there was a valid segment, create and put it into the 
@@ -328,8 +341,9 @@ namespace C1Q1
                     int theMinimalDistance = inSegmentArray[0].Distance();
                     for (int i = 0, j = 0; i < _mArray.Length - 1 || j < inDupCount; i++)
                     {
-                        var theDistance = _mArray[i + 1] - _mArray[i];
-                        if (theDistance == theMinimalDistance)
+                        var theDistance = Math.Abs(_mArray[i + 1]) - Math.Abs(_mArray[i]);
+                        if (theDistance == theMinimalDistance && inSegmentArray[0].StartingPoint.Index != i
+                        ) // Be careful about the same segment
                         {
                             int theStartIndex = i, theEndIndex = i + 1;
                             CSegment theSegment = CSegment.Create(_mArray, theStartIndex, ref theEndIndex);
@@ -345,7 +359,88 @@ namespace C1Q1
                 }
             }
 
-                return wasSuccessful;
+            return wasSuccessful;
+        }
+
+        public CSegment[] GetMinimals()
+        {
+            _minimalSegments[_minimalSegmentsSize] = null;  // Nullify the end of the array
+            return _minimalSegments;
+        }
+
+        public CSegment[] GetSubMinimals()
+        {
+            _subMinimalSegments[_subMinimalSegmentSize] = null;
+            return _subMinimalSegments;
+        }
+}
+    public enum SegmentType {
+        KMinimal,
+        KSubMinimal
+    };
+
+    public class CAxe
+    {
+        private CSegmentSquad _squad;
+        private CPoint[] _pointCage;
+        private int _remainingForAxe, _remainingToDepart, _remainingToKill;
+
+        public CAxe(
+            CSegmentSquad inSquad)
+        {
+            _squad = inSquad;
+            _pointCage = new CPoint[3];
+        }
+
+        public void Arm(
+            SegmentType inSegmentType)
+        {
+            _remainingForAxe = 3;
+
+            if (inSegmentType == SegmentType.KMinimal)
+            {
+                CSegment[] theMinimals = _squad.GetMinimals();
+                for (int i = 0; theMinimals[i] != null; i++)
+                {
+                    if (theMinimals[i].StartingPoint.Touch())
+                        _remainingToDepart++;
+
+
+                }
+            }
+
+            
+        }
+
+        public bool Disarmed()
+        {
+            return false;
+        }
+
+        public CPoint[] GetCage()
+        {
+            return _pointCage;
+        }
+
+        public void Depart(
+            CSegment inSegment)
+        {
+            
+        }
+
+        public void Kill(
+            CSegment inSegment)
+        {
+            
+
+        }
+
+
+        public void Wound(
+            CSegment inSegment)
+        {
+            
+
         }
     }
 }
