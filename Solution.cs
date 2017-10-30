@@ -1,7 +1,5 @@
 ﻿using System;
-//using System.Runtime.InteropServices;
 
-//using System.Dynamic;
 
 namespace C1Q1
 {
@@ -95,12 +93,26 @@ namespace C1Q1
             return isTouchedBefore;
         }
 
-
+        public bool IsTouched()
+        {
+            return _touchCounter > 0 && _touchCounter < 10;
+        }
+        
 
 
         public int Value => _sBackingArray[Index];
 
         public int Index { get; }
+
+        public void Hunt()
+        {
+            _touchCounter += 10;
+        }
+
+        public bool IsHunted()
+        {
+            return _touchCounter > 10;
+        }
 
     }
 
@@ -159,8 +171,84 @@ namespace C1Q1
         {
             return Math.Abs(EndingPoint.Value) - Math.Abs(StartingPoint.Value);
         }
+
+        public CPoint Injure()
+        {
+            CPoint thePointToHunt = null;
+
+            // Prefere to depart, so first check if there is any touched points?
+            if (StartingPoint.IsTouched())
+                thePointToHunt = StartingPoint;
+            else if (EndingPoint.IsTouched())
+                thePointToHunt = EndingPoint;
+            else
+            {
+                // Do the wounding process
+                // Look at the neighbors:
+
+            }
+
+            thePointToHunt?.Hunt();
+
+            return thePointToHunt;
+        }
+
+        public int InjuredDistance()
+        {
+            int theDistance = -1;
+
+            return theDistance;
+        }
     }
 
+
+    class CSegmentPool
+    {
+        private CSegment[] _segments;
+        private int _size;
+        private int _minDist;
+
+        public CSegmentPool()
+        {
+            _segments = new CSegment[3];
+            _size = 0;
+            _minDist = Int32.MaxValue;
+        }
+
+        public void Add(
+            CSegment inSegment)
+        {
+            if( _size >= 3 )
+                throw new Exception("Segment Pool is full!");
+
+            _segments[_size++] = inSegment;
+            if (inSegment.Distance() < _minDist)
+                _minDist = inSegment.Distance();
+        }
+
+        public int GetMinDist()
+        {
+            return _minDist;
+        }
+
+        public void Injure(
+            int inSegmentIdx)
+        {
+            CPoint theHuntedpoint = null;
+
+            if( inSegmentIdx < 0 || inSegmentIdx >= _size )
+                throw new Exception("Invalid segment index to injure!");
+
+            theHuntedpoint = _segments[inSegmentIdx].Injure();
+
+            // Now we should recalculate the min_distnace considering this injury!
+            // But how?!
+            // We can implement a new InjuredDistance to look at the injured_point's neighbore and 
+            //  return a new distance as if the injured point was removed!
+
+            
+        }
+    }
 
     class SegmentResidency
     {
@@ -216,6 +304,12 @@ namespace C1Q1
     public class CSegmentSquad
     {
 
+        struct RemainingSegments
+        {
+            public int ToDepart;
+            public int ToKill;
+        }
+
         private readonly int[] _mArray;
         private readonly CSegment[] _minimalSegments;
         private readonly CSegment[] _subMinimalSegments;
@@ -224,6 +318,9 @@ namespace C1Q1
         private readonly SegmentResidency _minimalResidency;
         private readonly SegmentResidency _transientResidency;
         private readonly SegmentResidency _subMinimalResidency;
+
+        private RemainingSegments _minimalRemaining;
+        private RemainingSegments _subMinimalRemaining;
 
 
         public CSegmentSquad(
@@ -373,6 +470,36 @@ namespace C1Q1
             _subMinimalSegments[_subMinimalSegmentSize] = null;
             return _subMinimalSegments;
         }
+
+        public void Arm()
+        {
+
+            _minimalRemaining.ToKill = _minimalSegmentsSize * 2;
+            for (int i = 0; i < _minimalSegmentsSize; i++)
+            {
+                if (_minimalSegments[i].StartingPoint.Touch())
+                {
+                    _minimalRemaining.ToDepart++;
+                    _minimalRemaining.ToKill--;
+                }
+            }
+
+            _subMinimalRemaining.ToKill = _subMinimalSegmentSize * 2;
+            for (int i = 0; i < _subMinimalSegmentSize; i++)
+            {
+                if (_subMinimalSegments[i].StartingPoint.Touch())
+                {
+                    _subMinimalRemaining.ToDepart++;
+                    _subMinimalRemaining.ToKill--;
+                }
+            }
+        }
+
+        public bool Disarmed()
+        {
+
+            return false;
+        }
 }
     public enum SegmentType {
         KMinimal,
@@ -383,39 +510,16 @@ namespace C1Q1
     {
         private CSegmentSquad _squad;
         private CPoint[] _pointCage;
-        private int _remainingForAxe, _remainingToDepart, _remainingToKill;
+        private int _remainingForAxe;
 
         public CAxe(
             CSegmentSquad inSquad)
         {
             _squad = inSquad;
             _pointCage = new CPoint[3];
-        }
-
-        public void Arm(
-            SegmentType inSegmentType)
-        {
             _remainingForAxe = 3;
-
-            if (inSegmentType == SegmentType.KMinimal)
-            {
-                CSegment[] theMinimals = _squad.GetMinimals();
-                for (int i = 0; theMinimals[i] != null; i++)
-                {
-                    if (theMinimals[i].StartingPoint.Touch())
-                        _remainingToDepart++;
-
-
-                }
-            }
-
-            
         }
 
-        public bool Disarmed()
-        {
-            return false;
-        }
 
         public CPoint[] GetCage()
         {
