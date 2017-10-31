@@ -113,12 +113,34 @@ namespace C1Q1
         {
             return _touchCounter > 10;
         }
+        
+        public int PrevDistance()
+        {
+            int theDistance = 0;
+            
+            if( Index > 0 )
+                theDistance = _sBackingArray[Index] - _sBackingArray[Index-1];
+            
+            return theDistance;
+        }
+        
+        public int NextDistance()
+        {
+            int theDistance = 0;
+            
+            if( Index < _sBackingArray.Length - 1 )
+                theDistance = _sBackingArray[Index+1] - _sBackingArray[Index];
+            
+            return theDistance;
+        }
 
     }
 
     public class CSegment
     {
 
+        private int _Distance;
+        
         public static CSegment Create(
             int[] inArray,
             int inStartIndex,
@@ -152,6 +174,7 @@ namespace C1Q1
         {
             StartingPoint = CPoint.CreateUniquePoint(inStartIndex);
             EndingPoint = CPoint.CreateUniquePoint(inEndIndex);
+            _Distance = Math.Abs(EndingPoint.Value) - Math.Abs(StartingPoint.Value);
         }
 
 
@@ -169,36 +192,89 @@ namespace C1Q1
 
         public int Distance()
         {
-            return Math.Abs(EndingPoint.Value) - Math.Abs(StartingPoint.Value);
+            return _Distance;
+        }
+        
+        public void NeighborDistances( 
+            out int outStartingDistance, 
+            out int outEndingDistance)
+        {
+            outStartingDistance = StartingPoint.PrevDistance();
+            outEndingDistance = EndingPoint.NextDistance();
         }
 
         public CPoint Injure()
         {
             CPoint thePointToHunt = null;
+            int whichEndToHunt = 0;  // Init to 'no end'. 1: starting, 2: ending
 
             // Prefere to depart, so first check if there is any touched points?
             if (StartingPoint.IsTouched())
+            {
                 thePointToHunt = StartingPoint;
+                whichEndToHunt = 1;
+            }
             else if (EndingPoint.IsTouched())
+            {
                 thePointToHunt = EndingPoint;
+                whichEndToHunt = 2;
+            }
             else
             {
                 // Do the wounding process
                 // Look at the neighbors:
-
+                int theStartPrevDist, theEndNextDist;
+                NeighborDistances( theStartPrevDist, theEndNextDist);
+                if( theStartPrevDist == theEndNextDist )
+                {
+                    if( StartingPoint.Value < EndingPoint.Value )
+                    {
+                        thePointToHunt = StartingPoint;
+                        whichEndToHunt = 1;
+                    }
+                    else
+                    {
+                        thePointToHunt = EndingPoint;
+                        whichEndToHunt = 2;
+                    }
+                }
+                else if( theStartPrevDist < theEndNextDist )
+                {
+                    thePointToHunt = EndingPoint;
+                    whichEndToHunt = 2;
+                }
+                else // theStartPrevDist > theEndNextDist
+                {
+                    thePointToHunt = StartingPoint;
+                    whichEndToHunt = 1;
+                }
             }
 
             thePointToHunt?.Hunt();
+            
+            // Now recalculate the distance, considering the hunted point
+            // But what if all two points was haunted?! Hey: The Distance = PrevDist + ThisDist + NextDist
+            // Determine the most recently hunted point and then add its relevant neighbor to the distance
+            
+            switch( whichEndToHunt )
+            {
+                case 1:
+                    _Distance += StartingPoint.PrevDistance();
+                    break;
+                    
+                    
+                case 2:
+                    _Distance += EndingPoint.NextDistance();
+                    break;
+                    
+                default:
+                    break;
+            }
 
             return thePointToHunt;
         }
 
-        public int InjuredDistance()
-        {
-            int theDistance = -1;
-
-            return theDistance;
-        }
+        
     }
 
 
@@ -243,10 +319,15 @@ namespace C1Q1
 
             // Now we should recalculate the min_distnace considering this injury!
             // But how?!
-            // We can implement a new InjuredDistance to look at the injured_point's neighbore and 
-            //  return a new distance as if the injured point was removed!
-
+            // Whenever a segment was injured, we should re-calculate the distance
             
+            _minDist = Int32.MaxValue; // Reset 
+            for( i = 0; i < _size; i++ )
+            {
+                if (_segments[i].Distance() < _minDist)
+                    _minDist = inSegment.Distance();
+                
+            }
         }
     }
 
