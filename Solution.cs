@@ -73,6 +73,8 @@ namespace C1Q1
         private int _touchCounter;
         private static readonly CPoint[] SPointsPool = new CPoint[12];
         private static int _sPointsPoolSize;
+        private bool _isInfected;
+        private bool _isHunted;
 
 
         public static void SetBackingArray(
@@ -122,7 +124,8 @@ namespace C1Q1
 
             Index = index;
             _touchCounter = 0;
-
+            _isInfected = false;
+            _isHunted = false;
         }
 
         public bool Touch()
@@ -136,10 +139,18 @@ namespace C1Q1
 
         public bool IsTouched()
         {
-            return _touchCounter > 0 && _touchCounter < 10;
+            return _touchCounter > 0;
         }
-        
 
+        public void Infect()
+        {
+            _isInfected = true;
+        }
+
+        public bool IsInfected()
+        {
+            return _isInfected;
+        }
 
         public int Value => _sBackingArray[Index];
 
@@ -147,12 +158,12 @@ namespace C1Q1
 
         public void Hunt()
         {
-            _touchCounter += 10;
+            _isHunted = true;
         }
 
         public bool IsHunted()
         {
-            return _touchCounter >= 10;
+            return _isHunted;
         }
         
         public int PrevDistance()
@@ -246,24 +257,38 @@ namespace C1Q1
             outEndingDistance = EndingPoint.NextDistance();
         }
 
-        public CPoint Injure()
+        public CPoint Injure(
+            CSegmentPool inOwningPool,
+            int inPoolIdx)
         {
-            CPoint thePointToHunt = null;
+            CPoint thePointToHunt = null, thePointToInfect = null;
             int whichEndToHunt = 0;  // Init to 'no end'. 1: starting, 2: ending
 
             // Prefere to depart, so first check if there is any touched points?
             // It's NOT good, because we need to look forward and if there is the possiblility
             //      for moving forward, then try to avoid the point, which was shared by the
             //      prev injured segment!!
-            if (StartingPoint.IsTouched())
+            // So if we can move forward ? How we can check about this fact? 
+            //      (use index to see if this is the last point
+            //just check the prev segment and 
+            // NO No NO!!!!
+            // We need to introduce a new concept: InfectedPoint
+            //  In a segment, when we haunt an end_point then the other point is 'Infected'
+            //      and when we are checking for touch_points, then we choose them only if
+            //      it is NOT infected
+            if (StartingPoint.IsTouched() && !StartingPoint.IsInfected())
             {
+                
+
                 thePointToHunt = StartingPoint;
+                thePointToInfect = EndingPoint;
                 whichEndToHunt = 1;
             }
             else if (EndingPoint.IsTouched())
             {
                 thePointToHunt = EndingPoint;
                 whichEndToHunt = 2;
+                thePointToInfect = StartingPoint;
             }
             else
             {
@@ -275,21 +300,26 @@ namespace C1Q1
                     // Since the points are sorted, so the starting_point < ending (always!)
                     thePointToHunt = StartingPoint;
                     whichEndToHunt = 1;
-                    
+                    thePointToInfect = EndingPoint;
+
+
                 }
                 else if( theStartPrevDist < theEndNextDist )
                 {
                     thePointToHunt = EndingPoint;
                     whichEndToHunt = 2;
+                    thePointToInfect = StartingPoint;
                 }
                 else // theStartPrevDist > theEndNextDist
                 {
                     thePointToHunt = StartingPoint;
                     whichEndToHunt = 1;
+                    thePointToInfect = EndingPoint;
                 }
             }
 
             thePointToHunt?.Hunt();
+            thePointToInfect?.Infect();
             
             // Now recalculate the distance, considering the hunted point
             // But what if all two points was haunted?! Hey: The Distance = PrevDist + ThisDist + NextDist
@@ -368,7 +398,7 @@ namespace C1Q1
         }
 
 
-        public CSegment GetCSegment(
+        public CSegment GetSegment(
             int inIdx)
         {
             return _segments[inIdx];
@@ -381,7 +411,7 @@ namespace C1Q1
             if (_segments[_minSegmentIdx].WasInjured())
                 _reCalculateMinDistance();
 
-            theHuntedpoint = _segments[_minSegmentIdx].Injure();
+            theHuntedpoint = _segments[_minSegmentIdx].Injure(this, _minSegmentIdx);
 
             // Now we should recalculate the min_distnace considering this injury!
             // But how?!
@@ -597,7 +627,7 @@ namespace C1Q1
                     for (int i = 0, j = 0; i < _mArray.Length - 1 || j < inDupCount; i++)
                     {
                         var theDistance = Math.Abs(_mArray[i + 1]) - Math.Abs(_mArray[i]);
-                        if (theDistance == theMinimalDistance && inSegmentPool.GetCSegment(0).StartingPoint.Index != i
+                        if (theDistance == theMinimalDistance && inSegmentPool.GetSegment(0).StartingPoint.Index != i
                         ) // Be careful about the same segment
                         {
                             int theStartIndex = i, theEndIndex = i + 1;
